@@ -36,7 +36,7 @@ typedef struct rocket_sensor_data
   vector_3 acceleration = {};
 
   /**
-   * Orientation (Quaternion)
+   * Orientation (roll, pitch, heading)
    */
   orientation_t orientation = {};
 
@@ -71,7 +71,6 @@ typedef struct rocket_sensor_data
   float lon = -1;
 } rocket_sensor_data;
 
-
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 Adafruit_BMP280 bmp = Adafruit_BMP280();
 
@@ -94,8 +93,6 @@ void calibrate_altitude()
   uint8_t i = 0;
   float total_altitude = 0;
 
-  // TODO Use Chauvenet's criterion to detect outliers in data
-
   while (i < sample_count)
   {
     float alt = bmp.readAltitude();
@@ -104,6 +101,8 @@ void calibrate_altitude()
     i++;
     delay(100);
   }
+
+  // TODO Use Chauvenet's criterion to detect outliers in data
 
   sensor_data.ground_altitude = total_altitude / sample_count;
 }
@@ -126,7 +125,7 @@ void poll_sensors()
 
   // BMP
   // TODO - readTemperature is called in readPressure, readPressure is called in readAltitude.
-  // TODO optimize
+  // TODO see if optimization is possible
   sensor_data.temperature = bmp.readTemperature();
   sensor_data.pressure = bmp.readPressure();
   sensor_data.altitude = bmp.readAltitude();
