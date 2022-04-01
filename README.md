@@ -31,6 +31,12 @@ Additional information:
 - All data types are floats.
 - All measurements are metric (meters, m/s^2, celsius, etc.)
 
+## Macros
+- `LOG_TO_SD` (`boolean`)
+  Determines whether to log data to SD card. Useful if SD card breakout is not available or only `Serial` is needed.
+- `POLL_RATE` (`int`)
+  Rate in milliseconds to poll the sensors for new data.
+
 ## Roadmap
 - [X] Pull data from IMU
 - [X] Pull data from barometer
