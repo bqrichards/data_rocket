@@ -5,11 +5,17 @@
 #include <Adafruit_BMP280.h>
 #include <SPI.h>
 #include <SD.h>
+
+#define LOG_TO_SD true
+#define GPS false
+#define POLL_RATE 1000
+
+const int end_flight_button_pin = 2;
+
+#if GPS
 #include <TinyGPS.h>
 #include <SoftwareSerial.h>
-
-#define LOG_TO_SD false
-#define POLL_RATE 1000
+#endif
 
 typedef struct vector_3
 {
@@ -74,14 +80,16 @@ typedef struct rocket_sensor_data
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 Adafruit_BMP280 bmp = Adafruit_BMP280();
 
+#if GPS
 SoftwareSerial gpsSerial(3, 4); // rx, tx
 TinyGPS gps;
+#endif
 
 rocket_sensor_data sensor_data;
 
 File log_file;
 
-bool end_flight = false;
+int end_flight = LOW;
 
 String data_line;
 
@@ -131,47 +139,14 @@ void poll_sensors()
   sensor_data.altitude = bmp.readAltitude();
 
   // GPS
+#if GPS
   if (gpsSerial.available() && gps.encode(gpsSerial.read())) {
     gps.f_get_position(&sensor_data.lat, &sensor_data.lon);
   }
+#endif
 }
 
 void print_sensor_data()
-{
-  Serial.print("Accel X: ");
-  Serial.print(sensor_data.acceleration.x);
-
-  Serial.print(", Y: ");
-  Serial.print(sensor_data.acceleration.y);
-
-  Serial.print(", Z: ");
-  Serial.println(sensor_data.acceleration.z);
-
-  Serial.print("Roll: ");
-  Serial.print(sensor_data.orientation.roll);
-
-  Serial.print(", Pitch: ");
-  Serial.print(sensor_data.orientation.pitch);
-
-  Serial.print(", Heading: ");
-  Serial.println(sensor_data.orientation.heading);
-
-  Serial.print("Temp: ");
-  Serial.print(sensor_data.temperature);
-
-  Serial.print(", Pressure: ");
-  Serial.print(sensor_data.pressure);
-
-  Serial.print(", Altitude: ");
-  Serial.println(sensor_data.altitude);
-  Serial.println("");
-
-  Serial.print("Latitude: " + String(sensor_data.lat, 6));
-  Serial.print(", Longitude: " + String(sensor_data.lon, 6));
-  Serial.println("");
-}
-
-void log_sensor_data()
 {
   data_line = "";
   data_line += sensor_data.acceleration.x;
@@ -195,20 +170,33 @@ void log_sensor_data()
   data_line += sensor_data.lat;
   data_line += ",";
   data_line += sensor_data.lon;
+
+  Serial.println(data_line);
+}
+
+void log_sensor_data()
+{
   log_file.println(data_line);
 }
 
 void check_end_flight_button()
 {
-  // TODO - check if button is pressed and set end_flight accordingly
+  // Check if button is pressed and set end_flight accordingly
+  end_flight = digitalRead(end_flight_button_pin);
 }
 
 void setup()
 {
   Serial.begin(9600);
+#if GPS
   gpsSerial.begin(9600);
+#endif
   while (!Serial); // wait for serial port to connect. Needed for native USB
+#if GPS
   while (!gpsSerial); // wait for gps serial
+#endif
+
+  pinMode(end_flight_button_pin, INPUT);
 
   Serial.print("Configuring BMP280...");
   if (!bmp.begin())
@@ -239,9 +227,10 @@ void setup()
   Serial.print(sensor_data.ground_altitude);
   Serial.println("m");
 
-  #if LOG_TO_SD
+#if LOG_TO_SD
   Serial.print("Initializing SD card...");
-  if (!SD.begin(4)) {
+  pinMode(10, OUTPUT);
+  if (!SD.begin(10)) {
     Serial.println("failed");
     while (1);
   }
@@ -254,7 +243,7 @@ void setup()
     while(1);
   }
   Serial.println("done");
-  #endif
+#endif
 
   Serial.println("Ready");
 }
@@ -270,8 +259,11 @@ void loop()
 
   check_end_flight_button();
   
-  if (end_flight) {
+  if (end_flight == HIGH) {
+    #if LOG_TO_SD
     log_file.close();
+    #endif
+    Serial.println("Rocket flight finished.");
     while (1);
   }
 
