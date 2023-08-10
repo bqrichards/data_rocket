@@ -151,6 +151,11 @@ void poll_sensors()
 #endif
 }
 
+void output_sensor_headers(Print *printer)
+{
+  printer->println("Timestamp,AccelX,AccelY,AccelZ,Roll,Pitch,Heading,Temp,Pressure,Altitude,Lat,Long");
+}
+
 void output_sensor_data(Print *printer)
 {
   printer->print(sensor_data.timestamp);
@@ -250,6 +255,13 @@ void setup()
 #endif
 
   Serial.println("Setup finished");
+
+  // Print data column headers
+  output_sensor_headers(&Serial);
+
+#if LOG_TO_SD
+  output_sensor_headers(&log_file);
+#endif
 }
 
 void loop()
