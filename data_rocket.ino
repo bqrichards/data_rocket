@@ -6,45 +6,45 @@
 #include <SPI.h>
 #include <SD.h>
 
-#define LOG_TO_SD true
+#define LOG_TO_SD false
 #define GPS false
-#define POLL_RATE 1000
-
-const int end_flight_button_pin = 2;
 
 #if GPS
 #include <TinyGPS.h>
 #include <SoftwareSerial.h>
 #endif
 
-typedef struct vector_3
-{
-  double x = 0;
-  double y = 0;
-  double z = 0;
-} vector_3;
+const int end_flight_button_pin = 2;
 
-typedef struct orientation_t
+struct vector_3
 {
-  double roll = 0;
-  double pitch = 0;
-  double heading = 0;
-} orientation_t;
+  /** x, roll if orientation */
+  float x = 0;
+
+  /** y, pitch if orientation */
+  float y = 0;
+
+  /** z, heading if orientation */
+  float z = 0;
+};
 
 /**
  * Sensor data from IMU and barometric pressure sensor
  */
-typedef struct rocket_sensor_data
+struct rocket_sensor_data
 {
+  /** Timestamp (using Arduino's millis function) */
+  unsigned long timestamp;
+  
   /**
    * Acceleration (m/s^2)
    */
-  vector_3 acceleration = {};
+  struct vector_3 acceleration = {};
 
   /**
    * Orientation (roll, pitch, heading)
    */
-  orientation_t orientation = {};
+  struct vector_3 orientation = {};
 
   /**
    * Pressure (Pascals)
@@ -75,7 +75,7 @@ typedef struct rocket_sensor_data
    * Longitude
    */
   float lon = -1;
-} rocket_sensor_data;
+};
 
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 Adafruit_BMP280 bmp = Adafruit_BMP280();
@@ -85,13 +85,17 @@ SoftwareSerial gpsSerial(3, 4); // rx, tx
 TinyGPS gps;
 #endif
 
-rocket_sensor_data sensor_data;
-
+#if LOG_TO_SD
 File log_file;
+#endif
 
+/** Poll rate (in ms) */
+const bool pollRate = 1000;
+
+struct rocket_sensor_data sensor_data;
+
+/** Input to end flight recording */
 int end_flight = LOW;
-
-String data_line;
 
 void calibrate_altitude()
 {
@@ -120,6 +124,9 @@ void poll_sensors()
   sensors_event_t event;
   bno.getEvent(&event);
 
+  // Timestamp
+  sensor_data.timestamp = millis();
+
   // Acceleration
   imu::Vector<3> li_ac = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
   sensor_data.acceleration.x = li_ac.x();
@@ -127,13 +134,11 @@ void poll_sensors()
   sensor_data.acceleration.z = li_ac.z();
 
   // Orientation
-  sensor_data.orientation.roll = event.orientation.roll;
-  sensor_data.orientation.pitch = event.orientation.pitch;
-  sensor_data.orientation.heading = event.orientation.heading;
+  sensor_data.orientation.x = event.orientation.roll;
+  sensor_data.orientation.y = event.orientation.pitch;
+  sensor_data.orientation.z = event.orientation.heading;
 
   // BMP
-  // TODO - readTemperature is called in readPressure, readPressure is called in readAltitude.
-  // TODO see if optimization is possible
   sensor_data.temperature = bmp.readTemperature();
   sensor_data.pressure = bmp.readPressure();
   sensor_data.altitude = bmp.readAltitude();
@@ -146,37 +151,32 @@ void poll_sensors()
 #endif
 }
 
-void print_sensor_data()
+void output_sensor_data(Print *printer)
 {
-  data_line = "";
-  data_line += sensor_data.acceleration.x;
-  data_line += ",";
-  data_line += sensor_data.acceleration.y;
-  data_line += ",";
-  data_line += sensor_data.acceleration.z;
-  data_line += ",";
-  data_line += sensor_data.orientation.roll;
-  data_line += ",";
-  data_line += sensor_data.orientation.pitch;
-  data_line += ",";
-  data_line += sensor_data.orientation.heading;
-  data_line += ",";
-  data_line += sensor_data.temperature;
-  data_line += ",";
-  data_line += sensor_data.pressure;
-  data_line += ",";
-  data_line += sensor_data.altitude;
-  data_line += ",";
-  data_line += sensor_data.lat;
-  data_line += ",";
-  data_line += sensor_data.lon;
-
-  Serial.println(data_line);
-}
-
-void log_sensor_data()
-{
-  log_file.println(data_line);
+  printer->print(sensor_data.timestamp);
+  printer->print(",");
+  printer->print(sensor_data.acceleration.x);
+  printer->print(",");
+  printer->print(sensor_data.acceleration.y);
+  printer->print(",");
+  printer->print(sensor_data.acceleration.z);
+  printer->print(",");
+  printer->print(sensor_data.orientation.x);
+  printer->print(",");
+  printer->print(sensor_data.orientation.y);
+  printer->print(",");
+  printer->print(sensor_data.orientation.z);
+  printer->print(",");
+  printer->print(sensor_data.temperature);
+  printer->print(",");
+  printer->print(sensor_data.pressure);
+  printer->print(",");
+  printer->print(sensor_data.altitude);
+  printer->print(",");
+  printer->print(sensor_data.lat);
+  printer->print(",");
+  printer->print(sensor_data.lon);
+  printer->println("");
 }
 
 void check_end_flight_button()
@@ -187,32 +187,36 @@ void check_end_flight_button()
 
 void setup()
 {
+  Serial.println("Begin program");
+  
   Serial.begin(9600);
 #if GPS
+  Serial.println("Starting GPS");
   gpsSerial.begin(9600);
 #endif
   while (!Serial); // wait for serial port to connect. Needed for native USB
 #if GPS
+  Serial.println("Waiting for GPS");
   while (!gpsSerial); // wait for gps serial
 #endif
 
   pinMode(end_flight_button_pin, INPUT);
 
-  Serial.print("Configuring BMP280...");
+  Serial.print("Configuring BMP280 Pressure Sensor...");
   if (!bmp.begin())
   {
     Serial.println("failed");
-    while (1);
+    while (true);
   }
   Serial.println("done");
 
   delay(1000);
 
-  Serial.print("Configuring BNO055...");
+  Serial.print("Configuring BNO055 IMU...");
   if (!bno.begin())
   {
     Serial.println("failed");
-    while (1);
+    while (true);
   }
   Serial.println("done");
 
@@ -220,7 +224,7 @@ void setup()
 
   delay(1000);
 
-  Serial.print("Calibrating altitude...");
+  Serial.println("Calibrating altitude...");
   calibrate_altitude();
   Serial.println("done");
   Serial.print("Ground altitude: ");
@@ -232,7 +236,7 @@ void setup()
   pinMode(10, OUTPUT);
   if (!SD.begin(10)) {
     Serial.println("failed");
-    while (1);
+    while (true);
   }
   Serial.println("done");
 
@@ -240,32 +244,32 @@ void setup()
   log_file = SD.open("log_file.txt", FILE_WRITE);
   if (!log_file) {
     Serial.println("failed");
-    while(1);
+    while (true);
   }
   Serial.println("done");
 #endif
 
-  Serial.println("Ready");
+  Serial.println("Setup finished");
 }
 
 void loop()
 {
   poll_sensors();
-  print_sensor_data();
+  output_sensor_data(&Serial);
 
-  #if LOG_TO_SD
-  log_sensor_data();
-  #endif
+#if LOG_TO_SD
+  output_sensor_data(&log_file);
+#endif
 
   check_end_flight_button();
   
   if (end_flight == HIGH) {
-    #if LOG_TO_SD
+#if LOG_TO_SD
     log_file.close();
-    #endif
+#endif
     Serial.println("Rocket flight finished.");
-    while (1);
+    while (true);
   }
 
-  delay(POLL_RATE);
+  delay(pollRate);
 }
