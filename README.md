@@ -1,7 +1,7 @@
 # data_rocket
 
 ## Overview
-This Arduino is mounted on a rocket and records data from the flight to an SD card. It has three sensors that it pulls data from, detailed in the `Sensors` section below. The data recording begins after sensor calibration and is ended with the press of a button after the flight.
+This Arduino is mounted on a rocket and records data from the flight to an SD card. It has three sensors that it pulls data from, detailed in the [Sensors](#sensors) section. The data recording begins after sensor calibration and is ended with the press of a button after the flight.
 
 ## Sensors
 
@@ -25,10 +25,10 @@ The following is the list of sensors and data pulled from them.
 
 The sensor data is saved to a file on an SD card with the filename `log_file.txt`. The data is in CSV format with columns in the following order:
 
-`AccelX,AccelY,AccelZ,Roll,Pitch,Heading,Temp,Pressure,Altitude,Lat,Long`
+`Timestamp,AccelX,AccelY,AccelZ,Roll,Pitch,Heading,Temp,Pressure,Altitude,Lat,Long`
 
 Additional information:
-- All data types are floats.
+- All data types are floats with the exception of the `Timestamp`, which is an `unsigned long`.
 - All measurements are metric (meters, m/s^2, celsius, etc.)
 
 ## Macros
