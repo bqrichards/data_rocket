@@ -42,5 +42,5 @@ Additional information:
 - [X] Pull data from barometer
 - [X] Pull data from GPS
 - [X] Write data to SD Card
-- [X] Include timestamp with data
+- [X] [Include timestamp with data](https://github.com/bqrichards/data_rocket/issues/2)
 - [ ] Send data over radio
